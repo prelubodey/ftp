@@ -1,14 +1,20 @@
-# FTP Server for Camera (ARM64 / NanoPi)
+# 📸 FTP Server for Camera (NanoPi / FriendlyWrt)
 
-Скрипт для быстрой развертки FTP-сервера на роутерах с FriendlyWrt (NanoPi R2S/R4S/R5S) и других ARM64 устройствах через Docker.
+Универсальный скрипт для быстрого развертывания FTP-сервера на роутерах с Docker (NanoPi R2S/R4S/R5S, FriendlyWrt) и других ARM64 устройствах.
 
-## 🚀 Особенности
-- **Безопасность:** Не хранит IP, логины и пароли в коде (запрашивает при запуске).
-- **Автоматизация:** Сам определяет внешний IP и настраивает Firewall (UCI).
-- **Совместимость:** Работает на базе `delfer/alpine-ftp-server` (идеально для ARM64).
+## ✨ Особенности
+- **Интерактивность:** Скрипт запрашивает логин, пароль и IP при запуске.
+- **Безопасность:** В коде на GitHub нет ваших личных данных.
+- **Автоматизация:** Сам создает папки, настраивает права (777) и открывает порты в Firewall роутера (UCI).
+- **Пассивный режим:** Настроен диапазон портов `30000-30009` для стабильной работы камер через интернет.
 
-## 🛠 Установка одной командой
-Запустите этот код в терминале вашего роутера:
+## 🚀 Быстрый запуск
+Скопируйте и вставьте эту команду в терминал вашего роутера:
 
 ```bash
-wget -qO- [https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh](https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh) | sh
+wget -qO setup_ftp.sh [https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh](https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh) && sh setup_ftp.sh
+```
+Если вы хотите сменить пароль на уже работающем сервере, выполните:
+```bash
+docker exec -it camera-ftp passwd alpineftp
+```
