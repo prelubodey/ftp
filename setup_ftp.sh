@@ -1,6 +1,56 @@
 #!/bin/sh
 
 # 1. Запрос данных
+echo "--- НАСТРОЙКА FTP (Стабильная версия) ---"
+echo "Логин по умолчанию: alpineftp"
+printf "Введите пароль для доступа: "
+read MY_PASS
+printf "Введите ваш внешний IP: "
+read MY_IP
+
+# 2. Очистка
+docker rm -f camera-ftp 2>/dev/null
+
+# 3. Подготовка папки
+mkdir -p /mnt/userdata/camera && chmod -R 777 /mnt/userdata/camera
+
+# 4. Запуск Docker
+# ВАЖНО: папка монтируется именно для пользователя alpineftp
+docker run -d \
+  --name camera-ftp \
+  --restart always \
+  --network host \
+  -v "/mnt/userdata/camera:/ftp/alpineftp" \
+  -e "ADDRESS=$MY_IP" \
+  -e "MIN_PORT=30000" \
+  -e "MAX_PORT=30009" \
+  delfer/alpine-ftp-server
+
+# 5. Установка пароля
+echo "🔐 Финализация настроек..."
+sleep 5
+docker exec camera-ftp sh -c "echo -e '$MY_PASS\n$MY_PASS' | passwd alpineftp"
+
+# 6. Firewall
+uci delete firewall.@rule[$(uci show firewall | grep 'Allow-FTP-All' | cut -d'[' -f2 | cut -d']' -f1)] 2>/dev/null
+uci add firewall rule
+uci set firewall.@rule[-1].name='Allow-FTP-All'
+uci set firewall.@rule[-1].src='wan'
+uci set firewall.@rule[-1].dest_port='21 30000-30009'
+uci set firewall.@rule[-1].proto='tcp'
+uci set firewall.@rule[-1].target='ACCEPT'
+uci commit firewall
+/etc/init.d/firewall restart
+
+echo "------------------------------------------------------"
+echo "✅ УСТАНОВКА ЗАВЕРШЕНА!"
+echo "Данные для подключения:"
+echo "Хост: $MY_IP"
+echo "Логин: alpineftp"
+echo "Пароль: (ваш пароль)"
+echo "------------------------------------------------------"#!/bin/sh
+
+# 1. Запрос данных
 echo "--- НАСТРОЙКА FTP (v2.0) ---"
 echo "Ваш логин будет: alpineftp"
 printf "Введите пароль для alpineftp: "
