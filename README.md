@@ -17,3 +17,7 @@
 ```bash
 wget -qO- [https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh](https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh) | sh
 ```
+Как изменить пароль (существующему юзеру)
+```bash
+passwd имя
+```
