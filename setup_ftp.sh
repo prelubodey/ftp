@@ -1,46 +1,42 @@
 #!/bin/sh
 
-# 1. Сброс и ввод данных
-MY_USER="alpineftp"
-echo "------------------------------------------------------"
-echo "--- НАСТРОЙКА FTP СЕРВЕРА (v4.0 Ultra-Stable) ---"
-printf "Введите пароль для доступа: "
+# 1. Ввод данных
+echo "--- НАСТРОЙКА FTP СЕРВЕРА (v5.0 vsftpd) ---"
+printf "Введите желаемый логин: "
+read MY_USER
+printf "Введите желаемый пароль: "
 read MY_PASS
 printf "Введите ваш внешний IP: "
 read MY_IP
 
-if [ -z "$MY_IP" ] || [ -z "$MY_PASS" ]; then
-    echo "❌ Ошибка: Данные не введены!"
+if [ -z "$MY_IP" ] || [ -z "$MY_PASS" ] || [ -z "$MY_USER" ]; then
+    echo "❌ Ошибка: Все поля должны быть заполнены!"
     exit 1
 fi
 
-# 2. Генерируем MD5-хэш пароля (это то, что понимает Alpine внутри Docker)
-# Мы используем openssl, который обычно есть в FriendlyWrt
-MY_HASH=$(printf "$MY_PASS" | openssl passwd -1 -stdin)
-
-echo "🚀 Установка..."
-
-# 3. Очистка старого хлама
+echo "🚀 Удаление старых версий..."
 docker rm -f camera-ftp 2>/dev/null
-docker rmi camera-ftp-saved 2>/dev/null
 
-# 4. Создаем папку
+# 2. Подготовка папки
 mkdir -p /mnt/userdata/camera && chmod -R 777 /mnt/userdata/camera
 
-# 5. Запуск Docker (ПРАВИЛЬНЫЙ МЕТОД)
-# Мы передаем готовый хэш в переменную FTP_PASS
+# 3. Запуск нового образа (fauria/vsftpd)
+# Он идеально работает с внешним IP и пассивными портами
+echo "🚀 Запуск нового контейнера..."
 docker run -d \
   --name camera-ftp \
   --restart always \
   --network host \
-  -v "/mnt/userdata/camera:/ftp/$MY_USER" \
-  -e "ADDRESS=$MY_IP" \
+  -v "/mnt/userdata/camera:/home/vsftpd/$MY_USER" \
   -e "FTP_USER=$MY_USER" \
-  -e "FTP_PASS=$MY_HASH" \
-  delfer/alpine-ftp-server
+  -e "FTP_PASS=$MY_PASS" \
+  -e "PASV_ADDRESS=$MY_IP" \
+  -e "PASV_MIN_PORT=30000" \
+  -e "PASV_MAX_PORT=30009" \
+  fauria/vsftpd
 
-# 6. Настройка Firewall (UCI)
-echo "🛡 Настройка Firewall..."
+# 4. Настройка Firewall (UCI)
+echo "🛡 Открытие портов в Firewall..."
 uci delete firewall.@rule[$(uci show firewall | grep 'Allow-FTP-All' | cut -d'[' -f2 | cut -d']' -f1)] 2>/dev/null
 uci add firewall rule
 uci set firewall.@rule[-1].name='Allow-FTP-All'
@@ -52,7 +48,9 @@ uci commit firewall
 /etc/init.d/firewall restart
 
 echo "------------------------------------------------------"
-echo "✅ ГОТОВО! Теперь пароль вшит намертво."
-echo "Хост: $MY_IP | Логин: $MY_USER"
+echo "✅ ВСЁ ГОТОВО! Пробуйте зайти в FileZilla."
+echo "Хост: $MY_IP"
+echo "Логин: $MY_USER"
+echo "Пароль: (ваш пароль)"
 echo "------------------------------------------------------"
 exit 0
