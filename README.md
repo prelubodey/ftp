@@ -12,7 +12,7 @@
 Скопируйте и вставьте эту команду в терминал вашего роутера:
 
 ```bash
-wget -qO setup_ftp.sh [https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh](https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh) && sh setup_ftp.sh
+wget -qO setup_ftp.sh "https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh" && sh setup_ftp.sh
 ```
 Если вы хотите сменить пароль на уже работающем сервере, выполните:
 ```bash
