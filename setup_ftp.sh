@@ -6,7 +6,7 @@ MY_PASS=""
 MY_IP=""
 
 echo "------------------------------------------------------"
-echo "--- НАСТРОЙКА FTP СЕРВЕРА (v2.2 Stable) ---"
+echo "--- НАСТРОЙКА FTP СЕРВЕРА (v3.0 Final) ---"
 printf "Введите пароль для доступа: "
 read MY_PASS
 printf "Введите ваш внешний IP: "
@@ -19,27 +19,41 @@ fi
 
 echo "🚀 Установка..."
 
-# 2. Очистка
+# 2. Очистка старого
 docker rm -f camera-ftp 2>/dev/null
 
-# 3. Папка
+# 3. Подготовка папки и ПРАВИЛЬНОГО пароля
 mkdir -p /mnt/userdata/camera && chmod -R 777 /mnt/userdata/camera
 
-# 4. Запуск Docker (ДОБАВЛЕНА ПЕРЕМЕННАЯ FTP_PASS)
-# Теперь пароль привязан к самому контейнеру и не сбросится
+# 4. Запуск Docker
+# Мы используем трюк: меняем пароль ПЕРЕД запуском или сразу ПРИ старте
 docker run -d \
   --name camera-ftp \
   --restart always \
   --network host \
   -v "/mnt/userdata/camera:/ftp/$MY_USER" \
   -e "ADDRESS=$MY_IP" \
-  -e "FTP_USER=$MY_USER" \
-  -e "FTP_PASS=$MY_PASS" \
-  -e "MIN_PORT=30000" \
-  -e "MAX_PORT=30009" \
   delfer/alpine-ftp-server
 
-# 5. Firewall UCI
+# 5. КРИТИЧЕСКИЙ ШАГ: Жесткая прошивка пароля в систему контейнера
+echo "🔐 Фиксация пароля..."
+sleep 5
+# Эта команда меняет пароль внутри работающего контейнера
+docker exec camera-ftp sh -c "echo -e '$MY_PASS\n$MY_PASS' | passwd $MY_USER"
+# А эта команда сохраняет состояние контейнера, чтобы изменения не пропали
+docker commit camera-ftp camera-ftp-saved
+
+# 6. Перезапуск из сохраненного образа (теперь пароль внутри образа навсегда)
+docker rm -f camera-ftp
+docker run -d \
+  --name camera-ftp \
+  --restart always \
+  --network host \
+  -v "/mnt/userdata/camera:/ftp/$MY_USER" \
+  -e "ADDRESS=$MY_IP" \
+  camera-ftp-saved
+
+# 7. Firewall UCI
 echo "🛡 Настройка Firewall..."
 uci delete firewall.@rule[$(uci show firewall | grep 'Allow-FTP-All' | cut -d'[' -f2 | cut -d']' -f1)] 2>/dev/null
 uci add firewall rule
@@ -52,7 +66,7 @@ uci commit firewall
 /etc/init.d/firewall restart
 
 echo "------------------------------------------------------"
-echo "✅ ГОТОВО! Пароль теперь зафиксирован."
+echo "✅ ВСЁ! Теперь пароль сохранится даже после REBOOT."
 echo "Хост: $MY_IP | Логин: $MY_USER"
 echo "------------------------------------------------------"
 exit 0
