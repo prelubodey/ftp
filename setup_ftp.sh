@@ -1,59 +1,68 @@
 #!/bin/sh
 
 # 1. Ввод данных
-echo "--- НАСТРОЙКА FTP (v6.0 FORCE) ---"
+echo "--- СИСТЕМНАЯ НАСТРОЙКА FTP (v9.0 NATIVE) ---"
 printf "Введите логин: "
 read MY_USER
 printf "Введите пароль: "
 read MY_PASS
-printf "Введите ваш внешний IP: "
-read MY_IP
 
-if [ -z "$MY_IP" ] || [ -z "$MY_PASS" ]; then
-    echo "❌ Ошибка: Заполните все поля!"
+if [ -z "$MY_USER" ] || [ -z "$MY_PASS" ]; then
+    echo "❌ Ошибка: Логин и пароль не могут быть пустыми!"
     exit 1
 fi
 
-# 2. Полная зачистка старого контейнера и его остатков
-docker rm -f camera-ftp 2>/dev/null
-docker volume rm ftp_data 2>/dev/null
+# 2. Установка пакета
+echo "📦 Установка vsftpd..."
+opkg update && opkg install vsftpd
 
-# 3. Подготовка папки
-mkdir -p /mnt/userdata/camera && chmod -R 777 /mnt/userdata/camera
+# 3. Создание пользователя вручную (для OpenWrt/FriendlyWrt)
+echo "👤 Создание пользователя $MY_USER..."
+if ! grep -q "^$MY_USER:" /etc/passwd; then
+    echo "$MY_USER:x:1000:1000:$MY_USER:/mnt/userdata/camera:/bin/sh" >> /etc/passwd
+    echo "$MY_USER:x:1000:$MY_USER" >> /etc/group
+    echo "Пользователь создан. Установите пароль:"
+    printf "$MY_PASS\n$MY_PASS\n" | passwd "$MY_USER"
+else
+    echo "Пользователь уже существует, обновляем пароль..."
+    printf "$MY_PASS\n$MY_PASS\n" | passwd "$MY_USER"
+fi
 
-# 4. Запуск контейнера с принудительной перезаписью конфига
+# 4. Добавление шелла (чтобы не было ошибки 530)
+if ! grep -q "/bin/sh" /etc/shells; then
+    echo "/bin/sh" >> /etc/shells
+fi
+
+# 5. Создание папки и прав
+mkdir -p /mnt/userdata/camera
+chmod -R 777 /mnt/userdata/camera
+chown -R "$MY_USER":root /mnt/userdata/camera
+
+# 6. Запись конфигурации
+echo "⚙️ Настройка конфига..."
+cat <<EOF > /etc/vsftpd.conf
+listen=YES
+background=YES
+anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+local_umask=022
+check_shell=NO
+local_root=/mnt/userdata/camera
+chroot_local_user=YES
+allow_writeable_chroot=YES
+pasv_enable=YES
+pasv_min_port=30000
+pasv_max_port=30009
+EOF
+
+# 7. Запуск сервиса
 echo "🚀 Запуск сервера..."
-docker run -d \
-  --name camera-ftp \
-  --restart always \
-  --network host \
-  -v "/mnt/userdata/camera:/home/vsftpd/$MY_USER" \
-  -e "FTP_USER=$MY_USER" \
-  -e "FTP_PASS=$MY_PASS" \
-  -e "PASV_ADDRESS=$MY_IP" \
-  -e "PASV_MIN_PORT=30000" \
-  -e "PASV_MAX_PORT=30009" \
-  fauria/vsftpd
-
-# 5. КЛЮЧЕВОЙ МОМЕНТ: Принудительное обновление базы пользователей внутри
-echo "🔐 Прошивка вашего пароля в базу данных сервера..."
-sleep 5
-# Мы вручную создаем файл со списком пользователей и обновляем базу БД
-docker exec camera-ftp sh -c "echo -e '$MY_USER\n$MY_PASS' > /etc/vsftpd/virtual_users.txt && db_load -T -t hash -f /etc/vsftpd/virtual_users.txt /etc/vsftpd/virtual_users.db"
-
-# 6. Firewall
-uci delete firewall.@rule[$(uci show firewall | grep 'Allow-FTP-All' | cut -d'[' -f2 | cut -d']' -f1)] 2>/dev/null
-uci add firewall rule
-uci set firewall.@rule[-1].name='Allow-FTP-All'
-uci set firewall.@rule[-1].src='wan'
-uci set firewall.@rule[-1].dest_port='21 30000-30009'
-uci set firewall.@rule[-1].proto='tcp'
-uci set firewall.@rule[-1].target='ACCEPT'
-uci commit firewall
-/etc/init.d/firewall restart
+/etc/init.d/vsftpd enable
+/etc/init.d/vsftpd restart
 
 echo "------------------------------------------------------"
-echo "✅ ТЕПЕРЬ ПАРОЛЬ ТОЧНО ВАШ!"
-echo "Логин: $MY_USER | Пароль: $MY_PASS"
+echo "✅ ВСЁ ГОТОВО! FTP работает напрямую в системе."
+echo "Логин: $MY_USER"
+echo "Папка: /mnt/userdata/camera"
 echo "------------------------------------------------------"
-exit 0
