@@ -15,7 +15,7 @@
 Зайдите в терминал роутера (через SSH или Web-консоль) и вставьте:
 
 ```bash
-wget -qO- [https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh](https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh) | sh
+wget -qO- https://raw.githubusercontent.com/prelubodey/ftp/main/setup_ftp.sh | sh
 ```
 Как изменить пароль (существующему юзеру)
 ```bash
